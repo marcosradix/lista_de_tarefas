@@ -16,6 +16,19 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
+final myTodo = TextEditingController();
+
+ void addItemToList(){
+   if(  myTodo.text.isNotEmpty ){
+   setState(() {
+  _todoList.add(myTodo.text);
+    myTodo.text = "";
+   });
+   }
+
+}
+
+
   List _todoList = ['Daniel', 'Marcos'];
   @override
   Widget build(BuildContext context) {
@@ -33,16 +46,20 @@ class _HomeState extends State<Home> {
               children: <Widget>[
                 Expanded(
                   child: TextField(
+                    controller: myTodo,
                     decoration: InputDecoration(
                         labelText: 'Nova tarefa',
                         labelStyle: TextStyle(color: Colors.blueAccent)),
                   ),
                 ),
-                RaisedButton(
+                RaisedButton.icon(
+                  icon: const Icon(Icons.add, size: 18.0),
                   color: Colors.blueAccent,
-                  child: Text('ADD'),
+                  label: Text('ADD'),
                   textColor: Colors.white,
-                  onPressed: () {},
+                  onPressed: () {
+                    addItemToList();
+                  },
                 )
               ],
             ),
@@ -52,7 +69,9 @@ class _HomeState extends State<Home> {
               padding: EdgeInsets.only(top: 10.0),
               itemCount: _todoList.length,
               itemBuilder: (context, index) {
-                return ListTile(title: Text( _todoList[index]),);
+                return ListTile(
+                  title: Text(_todoList[index]),
+                );
               },
             ),
           )
