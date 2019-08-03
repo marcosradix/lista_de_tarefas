@@ -16,20 +16,53 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
-final myTodo = TextEditingController();
+  final myTodoController = TextEditingController();
 
- void addItemToList(){
-   if(  myTodo.text.isNotEmpty ){
-   setState(() {
-  _todoList.add(myTodo.text);
-    myTodo.text = "";
-   });
-   }
+  void _addTodo() {
+    Map<String, dynamic> newTodo = Map();
+    if (myTodoController.text.isNotEmpty) {
+      setState(() {
+        newTodo["title"] = myTodoController.text;
+        myTodoController.text = "";
+        newTodo["ok"] = false;
+        _todoList.add(newTodo);
+      });
+      _saveData();
+    }
+  }
 
-}
+  Future<Null> _refresh() async {
+    await Future.delayed(Duration(seconds: 1));
+    setState(() {
+      _todoList.sort((a, b) {
+        if (a["ok"] && !b["ok"])
+          return 1;
+        else if (!a["ok"] && b["ok"])
+          return -1;
+        else
+          return 0;
+      });
+      _saveData();
+    });
+    return null;
+  }
 
+  @override
+  void initState() {
+    super.initState();
+    _readData().then((data) {
+      if (data.isNotEmpty) {
+        setState(() {
+          _todoList = json.decode(data);
+        });
+      }
+    });
+  }
 
-  List _todoList = ['Daniel', 'Marcos'];
+  List _todoList = [];
+  Map<String, dynamic> _lastRemoved;
+  int lastRemovedPos;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -46,7 +79,7 @@ final myTodo = TextEditingController();
               children: <Widget>[
                 Expanded(
                   child: TextField(
-                    controller: myTodo,
+                    controller: myTodoController,
                     decoration: InputDecoration(
                         labelText: 'Nova tarefa',
                         labelStyle: TextStyle(color: Colors.blueAccent)),
@@ -58,21 +91,19 @@ final myTodo = TextEditingController();
                   label: Text('ADD'),
                   textColor: Colors.white,
                   onPressed: () {
-                    addItemToList();
+                    _addTodo();
                   },
                 )
               ],
             ),
           ),
           Expanded(
-            child: ListView.builder(
-              padding: EdgeInsets.only(top: 10.0),
-              itemCount: _todoList.length,
-              itemBuilder: (context, index) {
-                return ListTile(
-                  title: Text(_todoList[index]),
-                );
-              },
+            child: RefreshIndicator(
+              onRefresh: _refresh,
+              child: ListView.builder(
+                  padding: EdgeInsets.only(top: 10.0),
+                  itemCount: _todoList.length,
+                  itemBuilder: buildItemList),
             ),
           )
         ],
@@ -80,12 +111,70 @@ final myTodo = TextEditingController();
     );
   }
 
+  Widget buildItemList(context, index) {
+    return Dismissible(
+      key: Key(DateTime.now().millisecondsSinceEpoch.toString()),
+      background: Container(
+        color: Colors.red,
+        child: Align(
+          child: Icon(
+            Icons.delete,
+            color: Colors.white,
+          ),
+          alignment: Alignment(-0.9, -0.0),
+        ),
+      ),
+      direction: DismissDirection.startToEnd,
+      child: checkboxListTile(index),
+      onDismissed: (direction) {
+        setState(() {
+          _lastRemoved = Map.from(_todoList[index]);
+          lastRemovedPos = index;
+          _todoList.removeAt(index);
+          _saveData();
+          final showLastRemoved = _lastRemoved['title'];
+          final snack = SnackBar(
+            content: Text("Tarefa \"$showLastRemoved\" removida!"),
+            action: SnackBarAction(
+                label: "Desfazer",
+                onPressed: () {
+                  setState(() {
+                    _todoList.insert(lastRemovedPos, _lastRemoved);
+                    _saveData();
+                  });
+                }),
+            duration: Duration(seconds: 3),
+          );
+          Scaffold.of(context).removeCurrentSnackBar();
+          Scaffold.of(context).showSnackBar(snack);
+        });
+      },
+    );
+  }
+
+  Widget checkboxListTile(index) {
+    return CheckboxListTile(
+      title: Text(_todoList[index]["title"]),
+      value: _todoList[index]["ok"],
+      secondary: CircleAvatar(
+        child: Icon(_todoList[index]["ok"] ? Icons.check : Icons.error),
+      ),
+      onChanged: (bool value) {
+        setState(() {
+          _todoList[index]["ok"] = value;
+          _saveData();
+        });
+      },
+    );
+  }
+
   Future<File> _getFile() async {
     final directory = await getApplicationDocumentsDirectory();
+    directory.create();
     return File("${directory.path}/data.json");
   }
 
-  Future<File> saveData() async {
+  Future<File> _saveData() async {
     String data = json.encode(_todoList);
     final file = await _getFile();
     return file.writeAsString(data);
